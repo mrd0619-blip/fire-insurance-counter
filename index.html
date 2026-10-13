@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#174a38">
+<title>火災保険 依頼件数カウンター</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f2f5f3;color:#24332b;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
+header{background:#174a38;color:white;padding:22px 16px}
+h1{font-size:21px;margin:0 0 7px}
+header p{margin:0;font-size:13px}
+main{max-width:650px;margin:auto;padding:15px}
+.summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
+.box{background:white;border-radius:12px;padding:16px;box-shadow:0 2px 6px #0000000c}
+.label{font-size:13px;color:#66746b}
+.number{font-size:30px;font-weight:700;margin-top:5px}
+h2{font-size:17px;margin:22px 0 10px}
+.section{background:white;border-radius:12px;padding:4px 14px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 0;border-bottom:1px solid #e8ece9}
+.row:last-child{border-bottom:0}
+.name{font-size:14px;font-weight:600}
+.count{font-size:21px;font-weight:700;min-width:28px;text-align:center}
+.action{display:flex;align-items:center;gap:10px}
+button{border:0;border-radius:9px;padding:10px 14px;font-size:15px;font-weight:600;cursor:pointer}
+.add{background:#19744c;color:white;min-width:62px}
+.undo{background:#e8eee9;color:#244b37}
+button:active{opacity:.7}
+.small{font-size:12px;color:#68756d;line-height:1.7}
+.history{background:white;border-radius:12px;padding:12px}
+.history-row{padding:10px 0;border-bottom:1px solid #edf0ee;font-size:13px;line-height:1.6}
+.history-row:last-child{border-bottom:0}
+.history-row button{padding:5px 9px;font-size:12px;margin-left:8px}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.tools button{background:#e4eae5;color:#31483a;font-size:13px}
+footer{font-size:11px;color:#778078;padding:20px 4px}
+</style>
+</head>
+<body>
+<header>
+<h1>火災保険 依頼件数カウンター</h1>
+<p>受付件数を記録・集計</p>
+</header>
+<main>
+<div class="summary">
+<div class="box"><div class="label">今日の依頼件数</div><div class="number" id="today">0</div></div>
+<div class="box"><div class="label">今月の依頼件数</div><div class="number" id="month">0</div></div>
+</div>
+
+<h2>A｜新規案件</h2>
+<div class="section" id="new"></div>
+<h2>B｜保全案件</h2>
+<div class="section" id="maintenance"></div>
+<h2>C｜更新案件</h2>
+<div class="section" id="renewal"></div>
+
+<h2>受付履歴</h2>
+<div class="small">受付日時と依頼内容を表示します。間違えた場合は、その記録を取り消せます。</div>
+<div class="tools">
+<button onclick="exportCSV()">履歴をCSV保存</button>
+<button onclick="clearHistory()">履歴を全削除</button>
+</div>
+<div class="history" id="history" style="margin-top:10px"></div>
+<footer>この端末のブラウザに件数を保存します。ブラウザのデータ削除や端末変更で記録が失われる場合があります。お客様の個人情報は入力しないでください。</footer>
+</main>
+<script>
+const categories=[
+{id:"new",items:["新規見積もり依頼","新規契約依頼"]},
+{id:"maintenance",items:["契約内容変更","解約","住所・名義変更","その他の保全"]},
+{id:"renewal",items:["更新依頼"]}
+];
+const KEY="fireInsuranceCounter_v1";
+let records=[];
+try{records=JSON.parse(localStorage.getItem(KEY)||"[]");if(!Array.isArray(records))records=[]}catch(e){records=[]}
+function save(){localStorage.setItem(KEY,JSON.stringify(records));render()}
+function add(name){records.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,7),name,time:new Date().toISOString()});save()}
+function removeRecord(id){if(!confirm("この受付記録を取り消しますか？"))return;records=records.filter(r=>r.id!==id);save()}
+function sameDay(a,b){return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate()}
+function render(){
+categories.forEach(c=>{
+document.getElementById(c.id).innerHTML=c.items.map(name=>{
+let n=records.filter(r=>r.name===name).length;
+return `<div class="row"><div class="name">${name}</div><div class="action"><span class="count">${n}</span><button class="add" onclick="add('${name}')">＋1</button></div></div>`;
+}).join("");
+});
+const now=new Date();
+document.getElementById("today").textContent=records.filter(r=>sameDay(new Date(r.time),now)).length;
+document.getElementById("month").textContent=records.filter(r=>{let d=new Date(r.time);return d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth()}).length;
+const sorted=[...records].sort((a,b)=>new Date(b.time)-new Date(a.time)).slice(0,100);
+document.getElementById("history").innerHTML=sorted.length?sorted.map(r=>`<div class="history-row">${new Date(r.time).toLocaleString("ja-JP")}<br>${r.name}<button class="undo" onclick="removeRecord('${r.id}')">取消</button></div>`).join(""):"まだ受付履歴はありません。";
+}
+function exportCSV(){
+if(!records.length){alert("保存する履歴がありません");return}
+const rows=[["受付日時","依頼内容"],...records.map(r=>[new Date(r.time).toLocaleString("ja-JP"),r.name])];
+const csv="\uFEFF"+rows.map(row=>row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(",")).join("\r\n");
+const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="火災保険受付履歴.csv";a.click();URL.revokeObjectURL(url);
+}
+function clearHistory(){if(!records.length){alert("履歴はありません");return}if(!confirm("すべての受付履歴を削除します。この操作は取り消せません。よろしいですか？"))return;records=[];save()}
+render();
+</script>
+</body>
+</html>
